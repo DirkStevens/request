@@ -345,14 +345,21 @@ Request.prototype.init = function (options) {
     self.qs(options.qs)
   }
 
+
+  console.log("About to make a mistake??\n");
+  console.log("self.path - before", JSON.stringify(self.path,null,null,4));
+  
   if (self.uri.path) {
     self.path = self.uri.path
+    console.log("self.uri.path", JSON.stringify(self.uri.path,null,null,4));
   } else {
+    console.log("self.uri.pathname", JSON.stringify(self.uri.pathname,null,null,4));
+    console.log("self.uri.search", JSON.stringify(self.uri.search,null,null,4));
     self.path = self.uri.pathname + (self.uri.search || '')
   }
   
-  console.log("self.uri", JSON.stringify(self.uri,null,null,4));
-  console.log("self.path", JSON.stringify(self.path,null,null,4));
+  console.log("self.path - after", JSON.stringify(self.path,null,null,4));
+  
 
   if (self.path.length === 0) {
     self.path = '/'
