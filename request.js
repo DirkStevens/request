@@ -1163,9 +1163,11 @@ Request.prototype.qs = function (q, clobber) {
     return self
   }
 
-  self.uri = url.parse(self.uri.href.split('?')[0] + '?' + qs)
+  self.uri = url.parse(self.uri.href.split('?')[0] + '?' + qs, false)
   self.url = self.uri
   self.path = self.uri.path
+  console.log("before: ", self.uri.href.split('?')[0] + '?' + qs)
+  console.log("after", self.path)
 
   if (self.uri.host === 'unix') {
     self.enableUnixSocket()
