@@ -350,6 +350,9 @@ Request.prototype.init = function (options) {
   } else {
     self.path = self.uri.pathname + (self.uri.search || '')
   }
+  
+  console.log("self.uri", JSON.stringify(self.uri,null,null,4));
+  console.log("self.path", JSON.stringify(self.path,null,null,4));
 
   if (self.path.length === 0) {
     self.path = '/'
@@ -712,6 +715,8 @@ Request.prototype.start = function () {
   // start() is called once we are ready to send the outgoing HTTP request.
   // this is usually called on the first write(), end() or on nextTick()
   var self = this
+
+  console.log("self->start", JSON.stringify(self,null,null,4));
 
   if (self._aborted) {
     return
