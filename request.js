@@ -122,13 +122,28 @@ function Request (options) {
   if (options.method) {
     self.explicitMethod = true
   }
+  console.log("1000001 self.uri", JSON.stringify(self.uri));
   self._qs = new Querystring(self)
+
+  console.log("1000002 self.uri", JSON.stringify(self.uri));
   self._auth = new Auth(self)
+
+  console.log("1000003 self.uri", JSON.stringify(self.uri));
   self._oauth = new OAuth(self)
+
+  console.log("1000004 self.uri", JSON.stringify(self.uri));
   self._multipart = new Multipart(self)
+
+  console.log("1000005 self.uri", JSON.stringify(self.uri));
   self._redirect = new Redirect(self)
+
+  console.log("1000006 self.uri", JSON.stringify(self.uri));
   self._tunnel = new Tunnel(self)
+
+  console.log("1000007 self.uri", JSON.stringify(self.uri));
   self.init(options)
+
+  console.log("1000008 self.uri", JSON.stringify(self.uri));
 
   console.log("Instantiated...");
 }
