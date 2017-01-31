@@ -790,20 +790,29 @@ Request.prototype.start = function () {
     return
   }
 
+  console.log("AAA self.uri", JSON.stringify(self.uri));
+
   self._started = true
   self.method = self.method || 'GET'
   self.href = self.uri.href
 
+  console.log("BBB self.uri", JSON.stringify(self.uri));
+
   if (self.src && self.src.stat && self.src.stat.size && !self.hasHeader('content-length')) {
     self.setHeader('content-length', self.src.stat.size)
   }
+  console.log("CCC self.uri", JSON.stringify(self.uri));
+
   if (self._aws) {
     self.aws(self._aws, true)
   }
+  console.log("DDD self.uri", JSON.stringify(self.uri));
 
   // We have a method named auth, which is completely different from the http.request
   // auth option.  If we don't remove it, we're gonna have a bad time.
   var reqOptions = copy(self)
+  console.log("EEE self.uri", JSON.stringify(self.uri));
+
   delete reqOptions.auth
 
   debug('make request', self.uri.href)
