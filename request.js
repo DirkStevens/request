@@ -141,7 +141,7 @@ function Request (options) {
   self._tunnel = new Tunnel(self)
 
   console.log("1000007 self.uri", JSON.stringify(self.uri));
-  self.init(options)
+  // self.init(options)
 
   console.log("1000008 self.uri", JSON.stringify(self.uri));
 
