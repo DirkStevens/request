@@ -174,7 +174,7 @@ Request.prototype.init = function (options) {
   // this function is called from both the constructor and on redirect.
   var self = this
 
-    if(!self.hasbeenInitiated){
+//    if(!self.hasbeenInitiated){
 
             console.log("1000 self.uri", JSON.stringify(self.uri));
 
@@ -465,10 +465,17 @@ Request.prototype.init = function (options) {
                 self.setHeader('accept-encoding', 'gzip, deflate')
             }
 
+
+
+            console.log("============= self.uri", JSON.stringify(self.uri));
+
             if (self.uri.auth && !self.hasHeader('authorization')) {
                 var uriAuthPieces = self.uri.auth.split(':').map(function(item) {return self._qs.unescape(item)})
                 self.auth(uriAuthPieces[0], uriAuthPieces.slice(1).join(':'), true)
             }
+
+            console.log("-------------- self.uri", JSON.stringify(self.uri));
+
 
             if (!self.tunnel && self.proxy && self.proxy.auth && !self.hasHeader('proxy-authorization')) {
                 var proxyAuthPieces = self.proxy.auth.split(':').map(function(item) {return self._qs.unescape(item)})
@@ -660,7 +667,7 @@ Request.prototype.init = function (options) {
                 self.ntick = true
             })
 
-    }
+   // }
 
 }
 
@@ -1237,11 +1244,16 @@ Request.prototype.pipeDest = function (dest) {
 Request.prototype.qs = function (q, clobber) {
   var self = this
   var base
+
+  console.log("ANOTHER ATTEMPT 1 self.uri", JSON.stringify(self.uri));
+
   if (!clobber && self.uri.query) {
     base = self._qs.parse(self.uri.query)
   } else {
     base = {}
   }
+
+  console.log("ANOTHER ATTEMPT 2 self.uri", JSON.stringify(self.uri));
 
   for (var i in q) {
     base[i] = q[i]
@@ -1253,11 +1265,13 @@ Request.prototype.qs = function (q, clobber) {
     return self
   }
 
+  console.log("ANOTHER ATTEMPT 3 self.uri", JSON.stringify(self.uri));
+
   self.uri = url.parse(self.uri.href.split('?')[0] + '?' + qs, false)
   self.url = self.uri
   self.path = self.uri.path
-  console.log("before: ", self.uri.href.split('?')[0] + '?' + qs)
-  console.log("after", self.path)
+
+  console.log("ANOTHER ATTEMPT 4 self.uri", JSON.stringify(self.uri));
 
   if (self.uri.host === 'unix') {
     self.enableUnixSocket()
