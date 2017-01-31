@@ -99,6 +99,9 @@ function Request (options) {
   // set Request instance to be readable and writable
   // call init
 
+
+  console.log("Instantiate");
+
   var self = this
 
   // start with HAR, then override with additional options
@@ -126,6 +129,8 @@ function Request (options) {
   self._redirect = new Redirect(self)
   self._tunnel = new Tunnel(self)
   self.init(options)
+
+  console.log("Instantiated...");
 }
 
 util.inherits(Request, stream.Stream)
@@ -169,8 +174,10 @@ Request.prototype.init = function (options) {
     self.localAddress = options.localAddress
   }
 
-  self._qs.init(options)
-  console.log("_qs->init");
+  if(!self.uri){
+    self._qs.init(options)
+    console.log("_qs->init");
+  }
 
   debug(options)
   if (!self.pool && self.pool !== false) {
