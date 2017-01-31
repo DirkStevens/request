@@ -147,7 +147,10 @@ Request.prototype.debug = debug
 Request.prototype.init = function (options) {
   
   console.log("request->init");
-  
+
+  console.log("1000 self.uri", JSON.stringify(self.uri));
+
+
   // init() contains all the code to setup the request object.
   // the actual outgoing request is not started until start() is called
   // this function is called from both the constructor and on redirect.
@@ -155,7 +158,11 @@ Request.prototype.init = function (options) {
   if (!options) {
     options = {}
   }
+  console.log("1001 self.uri", JSON.stringify(self.uri));
+
   self.headers = self.headers ? copy(self.headers) : {}
+
+  console.log("1002 self.uri", JSON.stringify(self.uri));
 
   // Delete headers with value undefined since they break
   // ClientRequest.OutgoingMessage.setHeader in node 0.12
@@ -165,7 +172,11 @@ Request.prototype.init = function (options) {
     }
   }
 
+  console.log("1003 self.uri", JSON.stringify(self.uri));
+
   caseless.httpify(self, self.headers)
+
+  console.log("1004 self.uri", JSON.stringify(self.uri));
 
   if (!self.method) {
     self.method = options.method || 'GET'
@@ -174,10 +185,14 @@ Request.prototype.init = function (options) {
     self.localAddress = options.localAddress
   }
 
+  console.log("1005 self.uri", JSON.stringify(self.uri));
+
   if(!self.uri){
     self._qs.init(options)
     console.log("_qs->init");
   }
+
+  console.log("1006 self.uri", JSON.stringify(self.uri));
 
   debug(options)
   if (!self.pool && self.pool !== false) {
@@ -185,6 +200,8 @@ Request.prototype.init = function (options) {
   }
   self.dests = self.dests || []
   self.__isRequestRequest = true
+
+  console.log("1007 self.uri", JSON.stringify(self.uri));
 
   // Protect against double callback
   if (!self._callback && self.callback) {
