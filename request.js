@@ -148,13 +148,15 @@ Request.prototype.init = function (options) {
   
   console.log("request->init");
 
-  console.log("1000 self.uri", JSON.stringify(self.uri));
 
 
   // init() contains all the code to setup the request object.
   // the actual outgoing request is not started until start() is called
   // this function is called from both the constructor and on redirect.
   var self = this
+
+  console.log("1000 self.uri", JSON.stringify(self.uri));
+
   if (!options) {
     options = {}
   }
