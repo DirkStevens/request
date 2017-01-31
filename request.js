@@ -140,6 +140,9 @@ function debug() {
 Request.prototype.debug = debug
 
 Request.prototype.init = function (options) {
+  
+  console.log("request->init");
+  
   // init() contains all the code to setup the request object.
   // the actual outgoing request is not started until start() is called
   // this function is called from both the constructor and on redirect.
@@ -167,6 +170,7 @@ Request.prototype.init = function (options) {
   }
 
   self._qs.init(options)
+  console.log("_qs->init");
 
   debug(options)
   if (!self.pool && self.pool !== false) {
@@ -189,11 +193,16 @@ Request.prototype.init = function (options) {
     self.on('complete', self.callback.bind(self, null))
   }
 
+  
+
   // People use this property instead all the time, so support it
+  console.log("1 self.uri", JSON.stringify(self.uri));
   if (!self.uri && self.url) {
+  console.log("2 self.url", JSON.stringify(self.url));
     self.uri = self.url
     delete self.url
   }
+  console.log("3 self.uri", JSON.stringify(self.uri));
 
   // If there's a baseUrl, then use it as the base URL (i.e. uri must be
   // specified as a relative path and is appended to baseUrl).
@@ -233,14 +242,17 @@ Request.prototype.init = function (options) {
   }
 
   // If a string URI/URL was given, parse it into a URL object
+  console.log("4 self.uri", JSON.stringify(self.uri));
   if (typeof self.uri === 'string') {
     self.uri = url.parse(self.uri)
   }
+  console.log("5 self.uri", JSON.stringify(self.uri));
 
   // Some URL objects are not from a URL parsed string and need href added
   if (!self.uri.href) {
     self.uri.href = url.format(self.uri)
   }
+  console.log("6 self.uri", JSON.stringify(self.uri));
 
   // DEPRECATED: Warning for users of the old Unix Sockets URL Scheme
   if (self.uri.protocol === 'unix:') {
@@ -256,6 +268,7 @@ Request.prototype.init = function (options) {
     self.rejectUnauthorized = false
   }
 
+  console.log("7 self.uri", JSON.stringify(self.uri));
   if (!self.uri.pathname) {self.uri.pathname = '/'}
 
   if (!(self.uri.host || (self.uri.hostname && self.uri.port)) && !self.uri.isUnix) {
@@ -270,6 +283,7 @@ Request.prototype.init = function (options) {
       message += '. This can be caused by a crappy redirection.'
     }
     // This error was fatal
+  console.log("8 self.uri", JSON.stringify(self.uri));
     self.abort()
     return self.emit('error', new Error(message))
   }
@@ -297,6 +311,7 @@ Request.prototype.init = function (options) {
     }
     self.setHost = true
   }
+  console.log("9 self.uri", JSON.stringify(self.uri));
 
   self.jar(self._jar || options.jar)
 
@@ -345,6 +360,7 @@ Request.prototype.init = function (options) {
     self.qs(options.qs)
   }
 
+  console.log("10 self.uri", JSON.stringify(self.uri));
 
   console.log("About to make a mistake??\n");
   console.log("self.path - before", JSON.stringify(self.path,null,null,4));
@@ -362,6 +378,7 @@ Request.prototype.init = function (options) {
   }
   
   console.log("self.path - after", JSON.stringify(self.path,null,null,4));
+  console.log("11 self.uri", JSON.stringify(self.uri));
   
 
   if (self.path.length === 0) {
