@@ -104,6 +104,8 @@ function Request (options) {
 
   var self = this
 
+  self.hasbeenInitiated = false;
+
   // start with HAR, then override with additional options
   if (options.har) {
     self._har = new Har(self)
@@ -141,11 +143,13 @@ function Request (options) {
   self._tunnel = new Tunnel(self)
 
   console.log("1000007 self.uri", JSON.stringify(self.uri));
-  // self.init(options)
+  self.init(options)
 
   console.log("1000008 self.uri", JSON.stringify(self.uri));
 
   console.log("Instantiated...");
+
+  self.hasbeenInitiated = true;
 }
 
 util.inherits(Request, stream.Stream)
@@ -170,489 +174,493 @@ Request.prototype.init = function (options) {
   // this function is called from both the constructor and on redirect.
   var self = this
 
-  console.log("1000 self.uri", JSON.stringify(self.uri));
-
-  if (!options) {
-    options = {}
-  }
-  console.log("1001 self.uri", JSON.stringify(self.uri));
-
-  self.headers = self.headers ? copy(self.headers) : {}
-
-  console.log("1002 self.uri", JSON.stringify(self.uri));
-
-  // Delete headers with value undefined since they break
-  // ClientRequest.OutgoingMessage.setHeader in node 0.12
-  for (var headerName in self.headers) {
-    if (typeof self.headers[headerName] === 'undefined') {
-      delete self.headers[headerName]
-    }
-  }
-
-  console.log("1003 self.uri", JSON.stringify(self.uri));
-
-  caseless.httpify(self, self.headers)
-
-  console.log("1004 self.uri", JSON.stringify(self.uri));
-
-  if (!self.method) {
-    self.method = options.method || 'GET'
-  }
-  if (!self.localAddress) {
-    self.localAddress = options.localAddress
-  }
-
-  console.log("1005 self.uri", JSON.stringify(self.uri));
-
-  if(!self.uri){
-    self._qs.init(options)
-    console.log("_qs->init");
-  }
-
-  console.log("1006 self.uri", JSON.stringify(self.uri));
-
-  debug(options)
-  if (!self.pool && self.pool !== false) {
-    self.pool = globalPool
-  }
-  self.dests = self.dests || []
-  self.__isRequestRequest = true
-
-  console.log("1007 self.uri", JSON.stringify(self.uri));
-
-  // Protect against double callback
-  if (!self._callback && self.callback) {
-    self._callback = self.callback
-    self.callback = function () {
-      if (self._callbackCalled) {
-        return // Print a warning maybe?
-      }
-      self._callbackCalled = true
-      self._callback.apply(self, arguments)
-    }
-    self.on('error', self.callback.bind())
-    self.on('complete', self.callback.bind(self, null))
-  }
-
-  
-
-  // People use this property instead all the time, so support it
-  console.log("1 self.uri", JSON.stringify(self.uri));
-  if (!self.uri && self.url) {
-  console.log("2 self.url", JSON.stringify(self.url));
-    self.uri = self.url
-    delete self.url
-  }
-  console.log("3 self.uri", JSON.stringify(self.uri));
-
-  // If there's a baseUrl, then use it as the base URL (i.e. uri must be
-  // specified as a relative path and is appended to baseUrl).
-  if (self.baseUrl) {
-    if (typeof self.baseUrl !== 'string') {
-      return self.emit('error', new Error('options.baseUrl must be a string'))
-    }
-
-    if (typeof self.uri !== 'string') {
-      return self.emit('error', new Error('options.uri must be a string when using options.baseUrl'))
-    }
-
-    if (self.uri.indexOf('//') === 0 || self.uri.indexOf('://') !== -1) {
-      return self.emit('error', new Error('options.uri must be a path when using options.baseUrl'))
-    }
-
-    // Handle all cases to make sure that there's only one slash between
-    // baseUrl and uri.
-    var baseUrlEndsWithSlash = self.baseUrl.lastIndexOf('/') === self.baseUrl.length - 1
-    var uriStartsWithSlash = self.uri.indexOf('/') === 0
-
-    if (baseUrlEndsWithSlash && uriStartsWithSlash) {
-      self.uri = self.baseUrl + self.uri.slice(1)
-    } else if (baseUrlEndsWithSlash || uriStartsWithSlash) {
-      self.uri = self.baseUrl + self.uri
-    } else if (self.uri === '') {
-      self.uri = self.baseUrl
-    } else {
-      self.uri = self.baseUrl + '/' + self.uri
-    }
-    delete self.baseUrl
-  }
-
-  // A URI is needed by this point, emit error if we haven't been able to get one
-  if (!self.uri) {
-    return self.emit('error', new Error('options.uri is a required argument'))
-  }
-
-  // If a string URI/URL was given, parse it into a URL object
-  console.log("4 self.uri", JSON.stringify(self.uri));
-  if (typeof self.uri === 'string') {
-    self.uri = url.parse(self.uri)
-  }
-  console.log("5 self.uri", JSON.stringify(self.uri));
-
-  // Some URL objects are not from a URL parsed string and need href added
-  if (!self.uri.href) {
-    self.uri.href = url.format(self.uri)
-  }
-  console.log("6 self.uri", JSON.stringify(self.uri));
-
-  // DEPRECATED: Warning for users of the old Unix Sockets URL Scheme
-  if (self.uri.protocol === 'unix:') {
-    return self.emit('error', new Error('`unix://` URL scheme is no longer supported. Please use the format `http://unix:SOCKET:PATH`'))
-  }
-
-  // Support Unix Sockets
-  if (self.uri.host === 'unix') {
-    self.enableUnixSocket()
-  }
-
-  if (self.strictSSL === false) {
-    self.rejectUnauthorized = false
-  }
-
-  console.log("7 self.uri", JSON.stringify(self.uri));
-  if (!self.uri.pathname) {self.uri.pathname = '/'}
-
-  if (!(self.uri.host || (self.uri.hostname && self.uri.port)) && !self.uri.isUnix) {
-    // Invalid URI: it may generate lot of bad errors, like 'TypeError: Cannot call method `indexOf` of undefined' in CookieJar
-    // Detect and reject it as soon as possible
-    var faultyUri = url.format(self.uri)
-    var message = 'Invalid URI "' + faultyUri + '"'
-    if (Object.keys(options).length === 0) {
-      // No option ? This can be the sign of a redirect
-      // As this is a case where the user cannot do anything (they didn't call request directly with this URL)
-      // they should be warned that it can be caused by a redirection (can save some hair)
-      message += '. This can be caused by a crappy redirection.'
-    }
-    // This error was fatal
-  console.log("8 self.uri", JSON.stringify(self.uri));
-    self.abort()
-    return self.emit('error', new Error(message))
-  }
-
-  if (!self.hasOwnProperty('proxy')) {
-    self.proxy = getProxyFromURI(self.uri)
-  }
-
-  self.tunnel = self._tunnel.isEnabled()
-  if (self.proxy) {
-    self._tunnel.setup(options)
-  }
-
-  self._redirect.onRequest(options)
-
-  self.setHost = false
-  if (!self.hasHeader('host')) {
-    var hostHeaderName = self.originalHostHeaderName || 'host'
-    self.setHeader(hostHeaderName, self.uri.hostname)
-    if (self.uri.port) {
-      if ( !(self.uri.port === 80 && self.uri.protocol === 'http:') &&
-           !(self.uri.port === 443 && self.uri.protocol === 'https:') ) {
-        self.setHeader(hostHeaderName, self.getHeader('host') + (':' + self.uri.port) )
-      }
-    }
-    self.setHost = true
-  }
-  console.log("9 self.uri", JSON.stringify(self.uri));
-
-  self.jar(self._jar || options.jar)
-
-  if (!self.uri.port) {
-    if (self.uri.protocol === 'http:') {self.uri.port = 80}
-    else if (self.uri.protocol === 'https:') {self.uri.port = 443}
-  }
-
-  if (self.proxy && !self.tunnel) {
-    self.port = self.proxy.port
-    self.host = self.proxy.hostname
-  } else {
-    self.port = self.uri.port
-    self.host = self.uri.hostname
-  }
-
-  if (options.form) {
-    self.form(options.form)
-  }
-
-  if (options.formData) {
-    var formData = options.formData
-    var requestForm = self.form()
-    var appendFormValue = function (key, value) {
-      if (value && value.hasOwnProperty('value') && value.hasOwnProperty('options')) {
-        requestForm.append(key, value.value, value.options)
-      } else {
-        requestForm.append(key, value)
-      }
-    }
-    for (var formKey in formData) {
-      if (formData.hasOwnProperty(formKey)) {
-        var formValue = formData[formKey]
-        if (formValue instanceof Array) {
-          for (var j = 0; j < formValue.length; j++) {
-            appendFormValue(formKey, formValue[j])
-          }
-        } else {
-          appendFormValue(formKey, formValue)
-        }
-      }
-    }
-  }
-
-  if (options.qs) {
-    self.qs(options.qs)
-  }
-
-  console.log("10 self.uri", JSON.stringify(self.uri));
-
-  console.log("About to make a mistake??\n");
-  console.log("self.path - before", JSON.stringify(self.path,null,null,4));
-  
-  if(!self.path){
-    
-    if (self.uri.path) {
-      self.path = self.uri.path
-      console.log("self.uri.path", JSON.stringify(self.uri.path,null,null,4));
-    } else {
-      console.log("self.uri.pathname", JSON.stringify(self.uri.pathname,null,null,4));
-      console.log("self.uri.search", JSON.stringify(self.uri.search,null,null,4));
-      self.path = self.uri.pathname + (self.uri.search || '')
-    }
-  }
-  
-  console.log("self.path - after", JSON.stringify(self.path,null,null,4));
-  console.log("11 self.uri", JSON.stringify(self.uri));
-  
-
-  if (self.path.length === 0) {
-    self.path = '/'
-  }
-
-  // Auth must happen last in case signing is dependent on other headers
-  if (options.aws) {
-    self.aws(options.aws)
-  }
-
-  if (options.hawk) {
-    self.hawk(options.hawk)
-  }
-
-  if (options.httpSignature) {
-    self.httpSignature(options.httpSignature)
-  }
-
-  if (options.auth) {
-    if (Object.prototype.hasOwnProperty.call(options.auth, 'username')) {
-      options.auth.user = options.auth.username
-    }
-    if (Object.prototype.hasOwnProperty.call(options.auth, 'password')) {
-      options.auth.pass = options.auth.password
-    }
-
-    self.auth(
-      options.auth.user,
-      options.auth.pass,
-      options.auth.sendImmediately,
-      options.auth.bearer
-    )
-  }
-
-  if (self.gzip && !self.hasHeader('accept-encoding')) {
-    self.setHeader('accept-encoding', 'gzip, deflate')
-  }
-
-  if (self.uri.auth && !self.hasHeader('authorization')) {
-    var uriAuthPieces = self.uri.auth.split(':').map(function(item) {return self._qs.unescape(item)})
-    self.auth(uriAuthPieces[0], uriAuthPieces.slice(1).join(':'), true)
-  }
-
-  if (!self.tunnel && self.proxy && self.proxy.auth && !self.hasHeader('proxy-authorization')) {
-    var proxyAuthPieces = self.proxy.auth.split(':').map(function(item) {return self._qs.unescape(item)})
-    var authHeader = 'Basic ' + toBase64(proxyAuthPieces.join(':'))
-    self.setHeader('proxy-authorization', authHeader)
-  }
-
-  if (self.proxy && !self.tunnel) {
-    self.path = (self.uri.protocol + '//' + self.uri.host + self.path)
-  }
-
-  if (options.json) {
-    self.json(options.json)
-  }
-  if (options.multipart) {
-    self.multipart(options.multipart)
-  }
-
-  if (options.time) {
-    self.timing = true
-    self.elapsedTime = self.elapsedTime || 0
-  }
-
-  function setContentLength () {
-    if (isTypedArray(self.body)) {
-      self.body = new Buffer(self.body)
-    }
-
-    if (!self.hasHeader('content-length')) {
-      var length
-      if (typeof self.body === 'string') {
-        length = Buffer.byteLength(self.body)
-      }
-      else if (Array.isArray(self.body)) {
-        length = self.body.reduce(function (a, b) {return a + b.length}, 0)
-      }
-      else {
-        length = self.body.length
-      }
-
-      if (length) {
-        self.setHeader('content-length', length)
-      } else {
-        self.emit('error', new Error('Argument error, options.body.'))
-      }
-    }
-  }
-  if (self.body && !isstream(self.body)) {
-    setContentLength()
-  }
-
-  if (options.oauth) {
-    self.oauth(options.oauth)
-  } else if (self._oauth.params && self.hasHeader('authorization')) {
-    self.oauth(self._oauth.params)
-  }
-
-  var protocol = self.proxy && !self.tunnel ? self.proxy.protocol : self.uri.protocol
-    , defaultModules = {'http:':http, 'https:':https}
-    , httpModules = self.httpModules || {}
-
-  self.httpModule = httpModules[protocol] || defaultModules[protocol]
-
-  if (!self.httpModule) {
-    return self.emit('error', new Error('Invalid protocol: ' + protocol))
-  }
-
-  if (options.ca) {
-    self.ca = options.ca
-  }
-
-  if (!self.agent) {
-    if (options.agentOptions) {
-      self.agentOptions = options.agentOptions
-    }
-
-    if (options.agentClass) {
-      self.agentClass = options.agentClass
-    } else if (options.forever) {
-      var v = version()
-      // use ForeverAgent in node 0.10- only
-      if (v.major === 0 && v.minor <= 10) {
-        self.agentClass = protocol === 'http:' ? ForeverAgent : ForeverAgent.SSL
-      } else {
-        self.agentClass = self.httpModule.Agent
-        self.agentOptions = self.agentOptions || {}
-        self.agentOptions.keepAlive = true
-      }
-    } else {
-      self.agentClass = self.httpModule.Agent
-    }
-  }
-
-  if (self.pool === false) {
-    self.agent = false
-  } else {
-    self.agent = self.agent || self.getNewAgent()
-  }
-
-  self.on('pipe', function (src) {
-    if (self.ntick && self._started) {
-      self.emit('error', new Error('You cannot pipe to this stream after the outbound request has started.'))
-    }
-    self.src = src
-    if (isReadStream(src)) {
-      if (!self.hasHeader('content-type')) {
-        self.setHeader('content-type', mime.lookup(src.path))
-      }
-    } else {
-      if (src.headers) {
-        for (var i in src.headers) {
-          if (!self.hasHeader(i)) {
-            self.setHeader(i, src.headers[i])
-          }
-        }
-      }
-      if (self._json && !self.hasHeader('content-type')) {
-        self.setHeader('content-type', 'application/json')
-      }
-      if (src.method && !self.explicitMethod) {
-        self.method = src.method
-      }
-    }
-
-    // self.on('pipe', function () {
-    //   console.error('You have already piped to this stream. Pipeing twice is likely to break the request.')
-    // })
-  })
-
-  defer(function () {
-    if (self._aborted) {
-      return
-    }
-
-    var end = function () {
-      if (self._form) {
-        if (!self._auth.hasAuth) {
-          self._form.pipe(self)
-        }
-        else if (self._auth.hasAuth && self._auth.sentAuth) {
-          self._form.pipe(self)
-        }
-      }
-      if (self._multipart && self._multipart.chunked) {
-        self._multipart.body.pipe(self)
-      }
-      if (self.body) {
-        if (isstream(self.body)) {
-          self.body.pipe(self)
-        } else {
-          setContentLength()
-          if (Array.isArray(self.body)) {
-            self.body.forEach(function (part) {
-              self.write(part)
+    if(!self.hasbeenInitiated){
+
+            console.log("1000 self.uri", JSON.stringify(self.uri));
+
+            if (!options) {
+                options = {}
+            }
+            console.log("1001 self.uri", JSON.stringify(self.uri));
+
+            self.headers = self.headers ? copy(self.headers) : {}
+
+            console.log("1002 self.uri", JSON.stringify(self.uri));
+
+            // Delete headers with value undefined since they break
+            // ClientRequest.OutgoingMessage.setHeader in node 0.12
+            for (var headerName in self.headers) {
+                if (typeof self.headers[headerName] === 'undefined') {
+                delete self.headers[headerName]
+                }
+            }
+
+            console.log("1003 self.uri", JSON.stringify(self.uri));
+
+            caseless.httpify(self, self.headers)
+
+            console.log("1004 self.uri", JSON.stringify(self.uri));
+
+            if (!self.method) {
+                self.method = options.method || 'GET'
+            }
+            if (!self.localAddress) {
+                self.localAddress = options.localAddress
+            }
+
+            console.log("1005 self.uri", JSON.stringify(self.uri));
+
+            if(!self.uri){
+                self._qs.init(options)
+                console.log("_qs->init");
+            }
+
+            console.log("1006 self.uri", JSON.stringify(self.uri));
+
+            debug(options)
+            if (!self.pool && self.pool !== false) {
+                self.pool = globalPool
+            }
+            self.dests = self.dests || []
+            self.__isRequestRequest = true
+
+            console.log("1007 self.uri", JSON.stringify(self.uri));
+
+            // Protect against double callback
+            if (!self._callback && self.callback) {
+                self._callback = self.callback
+                self.callback = function () {
+                if (self._callbackCalled) {
+                    return // Print a warning maybe?
+                }
+                self._callbackCalled = true
+                self._callback.apply(self, arguments)
+                }
+                self.on('error', self.callback.bind())
+                self.on('complete', self.callback.bind(self, null))
+            }
+
+            
+
+            // People use this property instead all the time, so support it
+            console.log("1 self.uri", JSON.stringify(self.uri));
+            if (!self.uri && self.url) {
+            console.log("2 self.url", JSON.stringify(self.url));
+                self.uri = self.url
+                delete self.url
+            }
+            console.log("3 self.uri", JSON.stringify(self.uri));
+
+            // If there's a baseUrl, then use it as the base URL (i.e. uri must be
+            // specified as a relative path and is appended to baseUrl).
+            if (self.baseUrl) {
+                if (typeof self.baseUrl !== 'string') {
+                return self.emit('error', new Error('options.baseUrl must be a string'))
+                }
+
+                if (typeof self.uri !== 'string') {
+                return self.emit('error', new Error('options.uri must be a string when using options.baseUrl'))
+                }
+
+                if (self.uri.indexOf('//') === 0 || self.uri.indexOf('://') !== -1) {
+                return self.emit('error', new Error('options.uri must be a path when using options.baseUrl'))
+                }
+
+                // Handle all cases to make sure that there's only one slash between
+                // baseUrl and uri.
+                var baseUrlEndsWithSlash = self.baseUrl.lastIndexOf('/') === self.baseUrl.length - 1
+                var uriStartsWithSlash = self.uri.indexOf('/') === 0
+
+                if (baseUrlEndsWithSlash && uriStartsWithSlash) {
+                self.uri = self.baseUrl + self.uri.slice(1)
+                } else if (baseUrlEndsWithSlash || uriStartsWithSlash) {
+                self.uri = self.baseUrl + self.uri
+                } else if (self.uri === '') {
+                self.uri = self.baseUrl
+                } else {
+                self.uri = self.baseUrl + '/' + self.uri
+                }
+                delete self.baseUrl
+            }
+
+            // A URI is needed by this point, emit error if we haven't been able to get one
+            if (!self.uri) {
+                return self.emit('error', new Error('options.uri is a required argument'))
+            }
+
+            // If a string URI/URL was given, parse it into a URL object
+            console.log("4 self.uri", JSON.stringify(self.uri));
+            if (typeof self.uri === 'string') {
+                self.uri = url.parse(self.uri)
+            }
+            console.log("5 self.uri", JSON.stringify(self.uri));
+
+            // Some URL objects are not from a URL parsed string and need href added
+            if (!self.uri.href) {
+                self.uri.href = url.format(self.uri)
+            }
+            console.log("6 self.uri", JSON.stringify(self.uri));
+
+            // DEPRECATED: Warning for users of the old Unix Sockets URL Scheme
+            if (self.uri.protocol === 'unix:') {
+                return self.emit('error', new Error('`unix://` URL scheme is no longer supported. Please use the format `http://unix:SOCKET:PATH`'))
+            }
+
+            // Support Unix Sockets
+            if (self.uri.host === 'unix') {
+                self.enableUnixSocket()
+            }
+
+            if (self.strictSSL === false) {
+                self.rejectUnauthorized = false
+            }
+
+            console.log("7 self.uri", JSON.stringify(self.uri));
+            if (!self.uri.pathname) {self.uri.pathname = '/'}
+
+            if (!(self.uri.host || (self.uri.hostname && self.uri.port)) && !self.uri.isUnix) {
+                // Invalid URI: it may generate lot of bad errors, like 'TypeError: Cannot call method `indexOf` of undefined' in CookieJar
+                // Detect and reject it as soon as possible
+                var faultyUri = url.format(self.uri)
+                var message = 'Invalid URI "' + faultyUri + '"'
+                if (Object.keys(options).length === 0) {
+                // No option ? This can be the sign of a redirect
+                // As this is a case where the user cannot do anything (they didn't call request directly with this URL)
+                // they should be warned that it can be caused by a redirection (can save some hair)
+                message += '. This can be caused by a crappy redirection.'
+                }
+                // This error was fatal
+            console.log("8 self.uri", JSON.stringify(self.uri));
+                self.abort()
+                return self.emit('error', new Error(message))
+            }
+
+            if (!self.hasOwnProperty('proxy')) {
+                self.proxy = getProxyFromURI(self.uri)
+            }
+
+            self.tunnel = self._tunnel.isEnabled()
+            if (self.proxy) {
+                self._tunnel.setup(options)
+            }
+
+            self._redirect.onRequest(options)
+
+            self.setHost = false
+            if (!self.hasHeader('host')) {
+                var hostHeaderName = self.originalHostHeaderName || 'host'
+                self.setHeader(hostHeaderName, self.uri.hostname)
+                if (self.uri.port) {
+                if ( !(self.uri.port === 80 && self.uri.protocol === 'http:') &&
+                    !(self.uri.port === 443 && self.uri.protocol === 'https:') ) {
+                    self.setHeader(hostHeaderName, self.getHeader('host') + (':' + self.uri.port) )
+                }
+                }
+                self.setHost = true
+            }
+            console.log("9 self.uri", JSON.stringify(self.uri));
+
+            self.jar(self._jar || options.jar)
+
+            if (!self.uri.port) {
+                if (self.uri.protocol === 'http:') {self.uri.port = 80}
+                else if (self.uri.protocol === 'https:') {self.uri.port = 443}
+            }
+
+            if (self.proxy && !self.tunnel) {
+                self.port = self.proxy.port
+                self.host = self.proxy.hostname
+            } else {
+                self.port = self.uri.port
+                self.host = self.uri.hostname
+            }
+
+            if (options.form) {
+                self.form(options.form)
+            }
+
+            if (options.formData) {
+                var formData = options.formData
+                var requestForm = self.form()
+                var appendFormValue = function (key, value) {
+                if (value && value.hasOwnProperty('value') && value.hasOwnProperty('options')) {
+                    requestForm.append(key, value.value, value.options)
+                } else {
+                    requestForm.append(key, value)
+                }
+                }
+                for (var formKey in formData) {
+                if (formData.hasOwnProperty(formKey)) {
+                    var formValue = formData[formKey]
+                    if (formValue instanceof Array) {
+                    for (var j = 0; j < formValue.length; j++) {
+                        appendFormValue(formKey, formValue[j])
+                    }
+                    } else {
+                    appendFormValue(formKey, formValue)
+                    }
+                }
+                }
+            }
+
+            if (options.qs) {
+                self.qs(options.qs)
+            }
+
+            console.log("10 self.uri", JSON.stringify(self.uri));
+
+            console.log("About to make a mistake??\n");
+            console.log("self.path - before", JSON.stringify(self.path,null,null,4));
+            
+            if(!self.path){
+                
+                if (self.uri.path) {
+                self.path = self.uri.path
+                console.log("self.uri.path", JSON.stringify(self.uri.path,null,null,4));
+                } else {
+                console.log("self.uri.pathname", JSON.stringify(self.uri.pathname,null,null,4));
+                console.log("self.uri.search", JSON.stringify(self.uri.search,null,null,4));
+                self.path = self.uri.pathname + (self.uri.search || '')
+                }
+            }
+            
+            console.log("self.path - after", JSON.stringify(self.path,null,null,4));
+            console.log("11 self.uri", JSON.stringify(self.uri));
+            
+
+            if (self.path.length === 0) {
+                self.path = '/'
+            }
+
+            // Auth must happen last in case signing is dependent on other headers
+            if (options.aws) {
+                self.aws(options.aws)
+            }
+
+            if (options.hawk) {
+                self.hawk(options.hawk)
+            }
+
+            if (options.httpSignature) {
+                self.httpSignature(options.httpSignature)
+            }
+
+            if (options.auth) {
+                if (Object.prototype.hasOwnProperty.call(options.auth, 'username')) {
+                options.auth.user = options.auth.username
+                }
+                if (Object.prototype.hasOwnProperty.call(options.auth, 'password')) {
+                options.auth.pass = options.auth.password
+                }
+
+                self.auth(
+                options.auth.user,
+                options.auth.pass,
+                options.auth.sendImmediately,
+                options.auth.bearer
+                )
+            }
+
+            if (self.gzip && !self.hasHeader('accept-encoding')) {
+                self.setHeader('accept-encoding', 'gzip, deflate')
+            }
+
+            if (self.uri.auth && !self.hasHeader('authorization')) {
+                var uriAuthPieces = self.uri.auth.split(':').map(function(item) {return self._qs.unescape(item)})
+                self.auth(uriAuthPieces[0], uriAuthPieces.slice(1).join(':'), true)
+            }
+
+            if (!self.tunnel && self.proxy && self.proxy.auth && !self.hasHeader('proxy-authorization')) {
+                var proxyAuthPieces = self.proxy.auth.split(':').map(function(item) {return self._qs.unescape(item)})
+                var authHeader = 'Basic ' + toBase64(proxyAuthPieces.join(':'))
+                self.setHeader('proxy-authorization', authHeader)
+            }
+
+            if (self.proxy && !self.tunnel) {
+                self.path = (self.uri.protocol + '//' + self.uri.host + self.path)
+            }
+
+            if (options.json) {
+                self.json(options.json)
+            }
+            if (options.multipart) {
+                self.multipart(options.multipart)
+            }
+
+            if (options.time) {
+                self.timing = true
+                self.elapsedTime = self.elapsedTime || 0
+            }
+
+            function setContentLength () {
+                if (isTypedArray(self.body)) {
+                self.body = new Buffer(self.body)
+                }
+
+                if (!self.hasHeader('content-length')) {
+                var length
+                if (typeof self.body === 'string') {
+                    length = Buffer.byteLength(self.body)
+                }
+                else if (Array.isArray(self.body)) {
+                    length = self.body.reduce(function (a, b) {return a + b.length}, 0)
+                }
+                else {
+                    length = self.body.length
+                }
+
+                if (length) {
+                    self.setHeader('content-length', length)
+                } else {
+                    self.emit('error', new Error('Argument error, options.body.'))
+                }
+                }
+            }
+            if (self.body && !isstream(self.body)) {
+                setContentLength()
+            }
+
+            if (options.oauth) {
+                self.oauth(options.oauth)
+            } else if (self._oauth.params && self.hasHeader('authorization')) {
+                self.oauth(self._oauth.params)
+            }
+
+            var protocol = self.proxy && !self.tunnel ? self.proxy.protocol : self.uri.protocol
+                , defaultModules = {'http:':http, 'https:':https}
+                , httpModules = self.httpModules || {}
+
+            self.httpModule = httpModules[protocol] || defaultModules[protocol]
+
+            if (!self.httpModule) {
+                return self.emit('error', new Error('Invalid protocol: ' + protocol))
+            }
+
+            if (options.ca) {
+                self.ca = options.ca
+            }
+
+            if (!self.agent) {
+                if (options.agentOptions) {
+                self.agentOptions = options.agentOptions
+                }
+
+                if (options.agentClass) {
+                self.agentClass = options.agentClass
+                } else if (options.forever) {
+                var v = version()
+                // use ForeverAgent in node 0.10- only
+                if (v.major === 0 && v.minor <= 10) {
+                    self.agentClass = protocol === 'http:' ? ForeverAgent : ForeverAgent.SSL
+                } else {
+                    self.agentClass = self.httpModule.Agent
+                    self.agentOptions = self.agentOptions || {}
+                    self.agentOptions.keepAlive = true
+                }
+                } else {
+                self.agentClass = self.httpModule.Agent
+                }
+            }
+
+            if (self.pool === false) {
+                self.agent = false
+            } else {
+                self.agent = self.agent || self.getNewAgent()
+            }
+
+            self.on('pipe', function (src) {
+                if (self.ntick && self._started) {
+                self.emit('error', new Error('You cannot pipe to this stream after the outbound request has started.'))
+                }
+                self.src = src
+                if (isReadStream(src)) {
+                if (!self.hasHeader('content-type')) {
+                    self.setHeader('content-type', mime.lookup(src.path))
+                }
+                } else {
+                if (src.headers) {
+                    for (var i in src.headers) {
+                    if (!self.hasHeader(i)) {
+                        self.setHeader(i, src.headers[i])
+                    }
+                    }
+                }
+                if (self._json && !self.hasHeader('content-type')) {
+                    self.setHeader('content-type', 'application/json')
+                }
+                if (src.method && !self.explicitMethod) {
+                    self.method = src.method
+                }
+                }
+
+                // self.on('pipe', function () {
+                //   console.error('You have already piped to this stream. Pipeing twice is likely to break the request.')
+                // })
             })
-          } else {
-            self.write(self.body)
-          }
-          self.end()
-        }
-      } else if (self.requestBodyStream) {
-        console.warn('options.requestBodyStream is deprecated, please pass the request object to stream.pipe.')
-        self.requestBodyStream.pipe(self)
-      } else if (!self.src) {
-        if (self._auth.hasAuth && !self._auth.sentAuth) {
-          self.end()
-          return
-        }
-        if (self.method !== 'GET' && typeof self.method !== 'undefined') {
-          self.setHeader('content-length', 0)
-        }
-        self.end()
-      }
-    }
 
-    if (self._form && !self.hasHeader('content-length')) {
-      // Before ending the request, we had to compute the length of the whole form, asyncly
-      self.setHeader(self._form.getHeaders(), true)
-      self._form.getLength(function (err, length) {
-        if (!err && !isNaN(length)) {
-          self.setHeader('content-length', length)
-        }
-        end()
-      })
-    } else {
-      end()
-    }
+            defer(function () {
+                if (self._aborted) {
+                return
+                }
 
-    self.ntick = true
-  })
+                var end = function () {
+                if (self._form) {
+                    if (!self._auth.hasAuth) {
+                    self._form.pipe(self)
+                    }
+                    else if (self._auth.hasAuth && self._auth.sentAuth) {
+                    self._form.pipe(self)
+                    }
+                }
+                if (self._multipart && self._multipart.chunked) {
+                    self._multipart.body.pipe(self)
+                }
+                if (self.body) {
+                    if (isstream(self.body)) {
+                    self.body.pipe(self)
+                    } else {
+                    setContentLength()
+                    if (Array.isArray(self.body)) {
+                        self.body.forEach(function (part) {
+                        self.write(part)
+                        })
+                    } else {
+                        self.write(self.body)
+                    }
+                    self.end()
+                    }
+                } else if (self.requestBodyStream) {
+                    console.warn('options.requestBodyStream is deprecated, please pass the request object to stream.pipe.')
+                    self.requestBodyStream.pipe(self)
+                } else if (!self.src) {
+                    if (self._auth.hasAuth && !self._auth.sentAuth) {
+                    self.end()
+                    return
+                    }
+                    if (self.method !== 'GET' && typeof self.method !== 'undefined') {
+                    self.setHeader('content-length', 0)
+                    }
+                    self.end()
+                }
+                }
+
+                if (self._form && !self.hasHeader('content-length')) {
+                // Before ending the request, we had to compute the length of the whole form, asyncly
+                self.setHeader(self._form.getHeaders(), true)
+                self._form.getLength(function (err, length) {
+                    if (!err && !isNaN(length)) {
+                    self.setHeader('content-length', length)
+                    }
+                    end()
+                })
+                } else {
+                end()
+                }
+
+                self.ntick = true
+            })
+
+    }
 
 }
 
